@@ -1,0 +1,46 @@
+{
+    "aespa_data": {
+        "aespa": {
+            "color": "0x9ceafe",
+            "color1": "0xc88ddd",
+            "emoji": "💜",
+            "aespa_exhibition": "aespaexhibition",
+            "aesp_aweek": "aespa_WEEK",
+            "bilibili": "2128487337",
+            "douyin": "h5ANeSK5EN8",
+            "facebook": "aespa.offical",
+            "homepage": "aespa",
+            "instagram": "aespa_official",
+            "pinterest": "aespicyclub",
+            "snapchat": "aespa.offical",
+            "tictok": "aespa_official",
+            "twitter": "aespa_official",
+            "twitterjp": "aespaJPofficial",
+            "weibo": "7479199632",
+            "weverse": "aespa",
+            "xiaohongshu": "684e9fae000000001b0229c4",
+            "youtube": "aespa"
+        },
+        "karina": {
+            "color": "0x0000ff",
+            "emoji": "💙",
+            "instagram": "katarinabluu"
+        },
+        "giselle": {
+            "color": "0xff0000",
+            "emoji": "🌙",
+            "instagram": "aerichandesu"
+        },
+        "winter": {
+            "color": "0x00ff00",
+            "emoji": "⭐️",
+            "instagram": "imwinter"
+        },
+        "ningning": {
+            "color": "0xffff00",
+            "emoji": "🦋",
+            "instagram": "imnotningning",
+            "weibo": "7842391335"
+        }
+    }
+}

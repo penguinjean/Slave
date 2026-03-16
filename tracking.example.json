@@ -1,0 +1,50 @@
+{
+    "lol 국가:닉네임#태그": {
+        "timestamp": "갱신한 시간",
+        "riotid": "닉네임#태그",
+        "region": "국가",
+        "level": "레벨",
+        "icon": "아이콘 정보",
+        "data": {
+            "solo": {
+                "tier": "현시즌 솔랭 티어",
+                "lp": "솔랭 Lp",
+                "w": "현시즌 솔랭 누적 승수",
+                "l": "현시즌 솔랭 누적 패수"
+            },
+            "flex": {
+                "tier": "현시즌 자랭 티어",
+                "lp": "자랭 Lp",
+                "w": "현시즌 자랭 누적 승수",
+                "l": "현시즌 자랭 누적 패수"
+            }
+        }
+    },
+    "pubg 플랫폼:닉네임": {
+        "timestamp": "갱신한 시간",
+        "nickname": "닉네임",
+        "platform": "플랫폼(steam, kakao, psn, xbox)",
+        "stats": {
+            "squad": {
+                "adr": 148,
+                "kd": 0.95,
+                "win_rate": "4.8%",
+                "top10": "35.2%",
+                "rounds": 3495,
+                "tier": "Normal",
+                "sub_tier": "",
+                "point": 0
+            },
+            "ranked-squad": {
+                "adr": 411,
+                "kd": 15.0,
+                "win_rate": "70%",
+                "top10": "41.2%",
+                "rounds": 512,
+                "tier": "Survivor",
+                "sub_tier": "1",
+                "point": 4600
+            }
+        }
+    }
+}

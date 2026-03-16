@@ -1,0 +1,13 @@
+{
+    "000000000000000000": {
+        "server_name": "server name",
+        "owner_id": 3732402127024001030,
+        "owner_name": "server owner",
+        "log_channel_id": 1111111111111111111,
+        "punish_log_channel_id": 2222222222222222222,
+        "command_channel_id": 3333333333333333333,
+        "ticket_panel_channel_id": 4444444444444444444,
+        "ticket_panel_msg_id": 5555555555555555555,
+        "ticket_counter": 0
+    }
+}
