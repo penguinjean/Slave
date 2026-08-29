@@ -7,7 +7,7 @@ class CacheManager(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         base_path = os.path.dirname(os.path.abspath(__file__))
-        self.cache_file = os.path.join(base_path, "..", "tracking.json")
+        self.cache_file = os.path.join(base_path, "..", "data/tracking.json")
         
         if not self.clean_cache_task.is_running():
             self.clean_cache_task.start()

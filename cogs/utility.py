@@ -87,7 +87,6 @@ class Utility(commands.Cog):
             target_name = interaction.user.display_name
             target_is_author = True
         else:
-            # 멘션 형태(<@ID> 또는 <@!ID>)로 들어온 경우 처리
             if target.startswith("<@") and target.endswith(">"):
                 clean_id = target.strip("<@!>")
                 member = interaction.guild.get_member(int(clean_id)) if clean_id.isdigit() else None

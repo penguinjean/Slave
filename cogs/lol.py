@@ -97,11 +97,7 @@ class LOLStats(commands.Cog):
             app_commands.Choice(name="EUW (서유럽)", value="euw"),
             app_commands.Choice(name="EUNE (북동유럽)", value="eune"),
         ])
-    @app_commands.describe(
-            riot_id="라이엇 ID (예: Hide on bush#KR1)",
-            platform="서버 지역 (기본값: KR)",
-            force_update="캐시를 무시하고 강제 갱신 여부"
-        )
+    @app_commands.describe(riot_id="라이엇 ID (예: Hide on bush#KR1)", platform="서버 지역 (기본값: KR)", force_update="캐시를 무시하고 강제 갱신 여부")
     async def lol_stats(self, interaction: discord.Interaction, riot_id: str, platform: str = "kr", force_update: bool = False):
         # 3초 제한 방지를 위한 응답 지연 처리
         await interaction.response.defer()
