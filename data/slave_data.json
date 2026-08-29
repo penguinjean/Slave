@@ -1,0 +1,15 @@
+{
+    "help": {
+        "name": "Slave",
+        "greeting": "서버에 초대해 주셔서 감사합니다!",
+        "summary": "즐거운 서버 활동을 돕기 위한 주요 명령어들을 안내해 드립니다."
+    },
+    "credit": {
+        "bot_name": "Slave",
+        "developer": "penguinjean0421",
+        "illustrator": "aram",
+        "repository": "penguinjean0421/slave",
+        "contact": "penguinjean0421@gmail.com",
+        "supporter": "목대 겜소과 친목 디코"
+    }
+}

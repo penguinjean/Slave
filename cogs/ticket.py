@@ -1,58 +1,61 @@
 import asyncio
-import discord
 from datetime import datetime, timezone
+import discord
+from discord import app_commands
 from discord.ext import commands
 
 
-# 닫기 버튼이 포함된 View
 class TicketCloseView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(
-        label="티켓 닫기 🔒",
-        style=discord.ButtonStyle.danger,
-        custom_id="close_ticket_btn"
-    )
+    @discord.ui.button(label="티켓 닫기 🔒", style=discord.ButtonStyle.danger, custom_id="close_ticket_btn")
     async def close_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         channel = interaction.channel
+        guild = interaction.guild
 
         try:
             await interaction.message.delete()
-        except:
+        except Exception:
             pass 
 
-        await channel.edit(name=f"closed-{channel.name}")
+        closed_category = discord.utils.get(guild.categories, name="closed")
+        if not closed_category:
+            try:
+                closed_category = await guild.create_category(name="closed")
+            except discord.Forbidden:
+                closed_category = None
+
+        await channel.edit(name=f"closed-{channel.name}", category=closed_category)
 
         for member in channel.members:
             if not member.guild_permissions.administrator and not member.bot:
                 await channel.set_permissions(member, overwrite=None)
 
-        close_embed = discord.Embed(
+        embed = discord.Embed(
             description="이 티켓은 종료되었습니다.",
-            color=0x2C3E50 
-        )
-        await channel.send(embed=close_embed)
+            color=0x808080
+            )
+        await channel.send(embed=embed)
         self.stop()
+
 
 class TicketView(discord.ui.View):
     def __init__(self, bot):
         super().__init__(timeout=None)
         self.bot = bot
 
-    @discord.ui.button(
-        label="티켓 열기 🎫",
-        style=discord.ButtonStyle.primary,
-        custom_id="open_ticket"
-    )
+    @discord.ui.button(label="티켓 열기 🎫", style=discord.ButtonStyle.primary, custom_id="open_ticket")
     async def open_ticket(self, interaction: discord.Interaction, button: discord.ui.Button):
         ticket_cog = self.bot.get_cog('Ticket')
         if ticket_cog:
-            channel = await ticket_cog.open_ticket_logic(interaction.guild, interaction.user)
-            await interaction.response.send_message(f"티켓이 생성되었습니다: {channel.mention}", ephemeral=True)
+            panel_category = interaction.channel.category
+            channel = await ticket_cog.open_ticket_logic(interaction.guild, interaction.user, panel_category)
+            await interaction.response.send_message(f"✅ 티켓이 생성되었습니다: {channel.mention}", ephemeral=True)
         else:
-            await interaction.response.send_message("티켓 시스템에 오류가 발생했습니다.", ephemeral=True)
+            await interaction.response.send_message("❌ 티켓 시스템에 오류가 발생했습니다.", ephemeral=True)
+
 
 class Ticket(commands.Cog):
     def __init__(self, bot):
@@ -63,19 +66,57 @@ class Ticket(commands.Cog):
         self.bot.add_view(TicketView(self.bot))
         self.bot.add_view(TicketCloseView(self.bot))
 
-    async def open_ticket_logic(self, guild, user):
+    @commands.Cog.listener()
+    async def on_message(self, message):
+        if message.author.bot or message.guild is None:
+            return
+
+        if not message.channel.name.startswith("ticket-"):
+            return
+
+        settings_cog = self.bot.get_cog('Settings')
+        if not settings_cog:
+            return
+
+        embed = discord.Embed(
+            description=message.content,
+            color=0x808080,
+            timestamp=datetime.now(timezone.utc)
+        )
+        embed.set_author(name=f"메시지: {message.author.display_name}", icon_url=message.author.display_avatar.url)
+        embed.set_footer(text=f"채널: #{message.channel.name}")
+
+        if message.attachments:
+            image_extensions = ('.png', '.jpg', '.jpeg', '.gif', '.webp')
+            file_list = []
+            has_image = False
+
+            for attachment in message.attachments:
+                if attachment.filename.lower().endswith(image_extensions):
+                    if not has_image:
+                        embed.set_image(url=attachment.url)
+                        has_image = True
+                
+                file_list.append(f"📄 {attachment.filename} ({round(attachment.size / 1024, 1)} KB)")
+
+            if file_list:
+                embed.add_field(
+                    name=f"첨부파일 ({len(message.attachments)}개)", 
+                    value="\n".join(file_list), 
+                    inline=False
+                    )
+
+        logger = self.bot.get_cog('Logger')
+        if logger:
+            return await logger.send_log(message.guild, embed, type="ticket")
+
+    async def open_ticket_logic(self, guild, user, category=None):
         settings_cog = self.bot.get_cog('Settings')
         
-        log_channel = None
         if settings_cog:
             config = settings_cog.get_server_data(guild)
             current_count = config.get("ticket_count", 0) + 1
             config["ticket_count"] = current_count
-            
-            log_channel_id = config.get("log_channel_id")
-            if log_channel_id:
-                log_channel = guild.get_channel(log_channel_id)
-            
             settings_cog.save_config()
         else:
             current_count = 1
@@ -86,31 +127,38 @@ class Ticket(commands.Cog):
             guild.default_role: discord.PermissionOverwrite(read_messages=False),
             user: discord.PermissionOverwrite(read_messages=True, send_messages=True),
             guild.me: discord.PermissionOverwrite(read_messages=True, send_messages=True)
-        }
+            }
 
         channel = await guild.create_text_channel(
             name=ticket_name,
+            category=category,
             overwrites=overwrites,
             reason=f"티켓 생성 (사용자: {user})"
-        )
+            )
 
         embed = discord.Embed(
             title=f"**Ticket No. {current_count:04d}**",
-            description=f"안녕하세요 {user.mention}님!\n문의 내용을 남겨주세요.\n\n**5분간 대화가 없으면 자동으로 닫힙니다.**",
-            color=0x2ECC71
-        )
+            description=(
+                f"안녕하세요 {user.mention}님!\n"
+                "내용을 남겨 주시기 바랍니다.\n"
+                "5분 동안 내용을 작성하지 않을 경우, 티켓이 자동 종료 됩니다."
+                ),
+            color=0x808080
+            )
         await channel.send(embed=embed)
 
-        if log_channel:
-            log_embed = discord.Embed(
-                title="🎫 새 티켓 알림",
-                color=0x2ECC71,
-                timestamp=datetime.now(timezone.utc)
+        embed = discord.Embed(
+            title="🎫 새 티켓 알림",
+            color=0x808080,
+            timestamp=datetime.now(timezone.utc)
             )
-            log_embed.add_field(name="티켓 번호", value=f"#{current_count:04d}", inline=True)
-            log_embed.add_field(name="생성자", value=f"{user.mention} ({user.id})", inline=True)
-            log_embed.add_field(name="채널", value=channel.mention, inline=False)
-            await log_channel.send(embed=log_embed)
+        embed.add_field(name="티켓 번호", value=f"#{current_count:04d}", inline=True)
+        embed.add_field(name="생성자", value=f"{user.mention} ({user.id})", inline=True)
+        embed.add_field(name="채널", value=channel.mention, inline=False)
+
+        logger = self.bot.get_cog('Logger')
+        if logger:
+            await logger.send_log(guild, embed, type="ticket")
 
         self.bot.loop.create_task(self.auto_close_timer(channel))
         return channel
@@ -127,7 +175,16 @@ class Ticket(commands.Cog):
                 await self.bot.wait_for('message', check=check, timeout=300.0)
             except asyncio.TimeoutError:
                 if channel.name.startswith("ticket-"):
-                    await channel.edit(name=f"closed-{channel.name}")
+                    guild = channel.guild
+                    
+                    closed_category = discord.utils.get(guild.categories, name="closed")
+                    if not closed_category:
+                        try:
+                            closed_category = await guild.create_category(name="closed")
+                        except Exception:
+                            closed_category = None
+
+                    await channel.edit(name=f"closed-{channel.name}", category=closed_category)
                     for member in channel.members:
                         if not member.guild_permissions.administrator and not member.bot:
                             await channel.set_permissions(member, overwrite=None)
@@ -135,71 +192,77 @@ class Ticket(commands.Cog):
                     timeout_embed = discord.Embed(
                         title="⚠️ 자동 종료",
                         description="**5분 동안 대화가 없어 티켓이 자동으로 종료되었습니다.**",
-                        color=0xE74C3C
-                    )
+                        color=0x808080
+                        )
                     await channel.send(embed=timeout_embed)
                 break
             except Exception:
                 break
-            else:
-                continue
 
     async def send_ticket_panel(self, channel: discord.TextChannel):
         embed = discord.Embed(
-            title="🎫 고객 지원 센터",
-            description="문의 사항이 있으시면 아래 버튼을 눌러 티켓을 열어주세요.",
-            color=0x95A5A6
-        )
+            title="🎫 문의 및 신고",
+            description="문의 사항이나, 신고할 유저가 있으면 버튼을 눌러 티켓을 열어주세요",
+            color=0x808080
+            )
         msg = await channel.send(embed=embed, view=TicketView(self.bot))
         return msg
-    
-    @commands.command(name="open")
-    async def open_cmd(self, ctx):
-        """!open 명령어로 티켓 생성"""
-        channel = await self.open_ticket_logic(ctx.guild, ctx.author)
+
+    @app_commands.command(name="open", description="수동으로 새로운 티켓을 생성합니다.")
+    async def open_ticket_cmd(self, interaction: discord.Interaction):
+        channel = await self.open_ticket_logic(interaction.guild, interaction.user, interaction.channel.category)
         embed = discord.Embed(
             description=f"✅ 티켓이 생성되었습니다: {channel.mention}",
-            color=0x2ECC71
-        )
-        await ctx.send(embed=embed, delete_after=5)
+            color=0x808080
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
-    @commands.command(name="close")
-    async def close_ticket_cmd(self, ctx):
-        """!close 입력 시 닫기 버튼 전송"""
-        if not ctx.channel.name.startswith("ticket-"):
+    @app_commands.command(name="close", description="현재 티켓 채널을 닫기 위한 버튼을 전송합니다.")
+    async def close_ticket_cmd(self, interaction: discord.Interaction):
+        if not interaction.channel.name.startswith("ticket-"):
             embed = discord.Embed(
                 description="❌ 이 명령어는 티켓 채널에서만 사용할 수 있습니다.",
-                color=0xE74C3C
-            )
-            return await ctx.send(embed=embed, delete_after=5)
+                color=0x808080
+                )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         embed = discord.Embed(
             description="아래 버튼을 누르면 티켓이 종료되고 관리자 전용 채널로 변경됩니다.",
-            color=0xE74C3C,
-        )
-        await ctx.send(embed=embed, view=TicketCloseView(self.bot))
+            color=0x808080
+            )
+        await interaction.response.send_message(embed=embed, view=TicketCloseView(self.bot))
 
-    @commands.command(name="answer")
-    @commands.has_permissions(administrator=True)
-    async def reply_ticket(self, ctx, *, content: str):
-        """관리자의 답변을 임베드로 전송"""
-        if not (ctx.channel.name.startswith("ticket-") or ctx.channel.name.startswith("closed-")):
-            embed = discord.Embed(description="❌ 이곳은 티켓 채널이 아닙니다.", color=0xE74C3C)
-            return await ctx.send(embed=embed, delete_after=3)
+    @app_commands.command(name="answer", description="특정 티켓 채널로 관리자 답변을 전송합니다.")
+    @app_commands.describe(target_channel="답변을 보낼 티켓 채널", content="전송할 내용")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reply_ticket(self, interaction: discord.Interaction, target_channel: discord.TextChannel, content: str):
+        if not (target_channel.name.startswith("ticket-") or target_channel.name.startswith("closed-")):
+            embed = discord.Embed(
+                description=f"❌ {target_channel.mention}은(는) 올바른 티켓 채널이 아닙니다.", 
+                color=0x808080
+                )
+            return await interaction.response.send_message(embed=embed, ephemeral=True)
 
         embed = discord.Embed(
             title="👤 관리자 답변",
             description=content,
-            color=0x2ECC71,
+            color=0x808080,
             timestamp=datetime.now(timezone.utc)
         )
-        embed.set_author(
-            name=ctx.author.display_name,
-            icon_url=ctx.author.display_avatar.url
-        )
-        embed.set_footer(text="관리자")
+        embed.set_footer(text=f"답변 작성자: {interaction.user.display_name}", icon_url=interaction.user.display_avatar.url)
 
-        await ctx.send(embed=embed)
+        try:
+            await target_channel.send(embed=embed)
+
+            embed = discord.Embed(
+                title=f"✅ {target_channel.mention} 채널에 답변을 전송했습니다.",
+                description=content,
+                color=0x808080
+            )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+        except discord.Forbidden:
+            await interaction.response.send_message("❌ 해당 채널에 메시지를 보낼 권한이 없습니다.", ephemeral=True)
 
 
 async def setup(bot):

@@ -2,7 +2,9 @@ import json
 import os
 import time
 import aiohttp
+
 import discord
+from discord import app_commands
 from discord.ext import commands
 from dotenv import load_dotenv
 
@@ -21,7 +23,7 @@ class PUBGStats(commands.Cog):
         self.main_color = 0xF1C40F
         
         base_path = os.path.dirname(os.path.abspath(__file__))
-        self.cache_file = os.path.join(base_path, "..", "tracking.json")
+        self.cache_file = os.path.join(base_path, "..", "data/tracking.json")
 
         # 봇 시작 시 시즌 정보 로드 및 루프 시작
         self.bot.loop.create_task(self.load_current_season())
@@ -124,44 +126,35 @@ class PUBGStats(commands.Cog):
             }
             return processed_data, None
 
-    @commands.command(name="pubg")
-    async def pubg_stats(self, ctx, *, args: str):
-        valid_platforms = ["steam", "kakao", "psn", "xbox"]
-        arg_list = args.split()
-        platform, mode = "steam", "squad"
+    @app_commands.command(name="pubg", description="배틀그라운드 전적을 조회합니다.")
+    @app_commands.choices(platform=[
+    app_commands.Choice(name="Steam", value="steam"),
+    app_commands.Choice(name="Kakao", value="kakao"),
+    app_commands.Choice(name="PSN", value="psn"),
+    app_commands.Choice(name="Xbox", value="xbox")
+    ])
+    @app_commands.choices(mode=[
+        app_commands.Choice(name="스쿼드 (일반)", value="squad"),
+        app_commands.Choice(name="듀오 (일반)", value="duo"),
+        app_commands.Choice(name="솔로 (일반)", value="solo"),
+        app_commands.Choice(name="경쟁전 (스쿼드)", value="ranked_squad"),
+    ])
+    async def pubg_stats(self, interaction: discord.Interaction, nickname: str, platform: str = "steam",  mode: str = "squad"):
+        await interaction.response.defer(ephemeral=False)
 
-        if not arg_list:
-            return await ctx.send("💡 사용법: `!pubg [플랫폼] 닉네임 [모드]`")
-
-        if arg_list[0].lower() in valid_platforms:
-            platform = arg_list.pop(0).lower()
-
-        potential_mode = arg_list[-1].lower()
-        is_ranked = any(k in potential_mode for k in ["ranked", "경쟁"])
-        mode_keywords = ["squad", "duo", "solo", "fpp", "ranked", "경쟁"]
-        
-        if any(key in potential_mode for key in mode_keywords):
-            mode = arg_list.pop(-1).lower()
-            if "경쟁" in mode or "ranked" in mode:
-                if mode in ["경쟁", "ranked"]: mode = "squad"
-                else: mode = mode.replace("경쟁", "").replace("ranked", "")
-        
-        target_nick = " ".join(arg_list)
-        if not target_nick:
-            return await ctx.send("💡 닉네임을 입력해주세요.")
-
-        stats, error = await self.fetch_pubg_data(platform, target_nick, mode, is_ranked)
+        is_ranked = "ranked_" in mode
+        actual_mode = mode.replace("ranked_", "")
+        stats, error = await self.fetch_pubg_data(platform, nickname, actual_mode, is_ranked)
 
         if error:
             error_msgs = {
-                "player_not_found": f"❌ **{target_nick}**님을 찾을 수 없습니다.",
+                "player_not_found": f"❌ **{nickname}**님을 찾을 수 없습니다.",
                 "season_not_loaded": "⚠️ 시즌 정보를 로드 중입니다.",
                 "api_error": "❌ API 응답 오류가 발생했습니다.",
-                "no_data": f"**{target_nick}**님의 {mode} 데이터가 없습니다."
+                "no_data": f"**{nickname}**님의 {actual_mode} 데이터가 없습니다."
             }
-            return await ctx.send(error_msgs.get(error, "⚠️ 오류 발생"))
+            return await interaction.followup.send(error_msgs.get(error, "⚠️ 오류 발생"), ephemeral=True)
 
-        # 1. JSON 저장용 순수 데이터 구성
         stats_content = {
             "adr": stats['adr'],
             "kd": stats['kd'],
@@ -173,10 +166,8 @@ class PUBGStats(commands.Cog):
             "point": stats['point']
         }
 
-        # 2. 모드별 누적 저장 실행
         self.save_tracking(platform, stats['nickname'], stats_content, stats['mode_key'], is_ranked)
 
-        # 3. Embed 출력
         embed = discord.Embed(title=f"PUBG 전적: {stats['nickname']}", color=self.main_color)
         if is_ranked:
             embed.add_field(name="티어", value=f"**{stats['tier']} {stats['sub_tier']}** ({stats['point']}pt)", inline=False)
@@ -191,7 +182,7 @@ class PUBGStats(commands.Cog):
         embed.add_field(name="🔗 상세 전적", value=f"[DAK.GG 바로가기]({dak_url})", inline=False)
         embed.set_footer(text=f"{platform.upper()} / {'Ranked' if is_ranked else 'Normal'}")
         
-        await ctx.send(embed=embed)
+        return await interaction.followup.send(embed=embed)
 
 async def setup(bot):
     await bot.add_cog(PUBGStats(bot))

@@ -2,13 +2,15 @@ import json
 import os
 
 import discord
+from discord import app_commands
 from discord.ext import commands
+
 
 class Settings(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
         base_path = os.path.dirname(os.path.abspath(__file__))
-        self.config_file = os.path.join(base_path, "..", "config.json")
+        self.config_file = os.path.join(base_path, "..", "data/config.json")
         self.server_configs = {}
         self.load_config()
 
@@ -40,13 +42,14 @@ class Settings(commands.Cog):
                 "server_name": guild.name,
                 "owner_id": guild.owner_id,
                 "owner_name": str(guild.owner),
-                "log_channel_id": None,
+                "server_log_channel_id": None,
                 "punish_log_channel_id": None,
+                "ticket_log_channel_id": None,
                 "command_channel_id": None,
                 "ticket_panel_channel_id": None,
                 "ticket_panel_msg_id": None,
                 "ticket_count": 0
-            }
+                }
         else:
             keys = ["ticket_panel_channel_id", "ticket_panel_msg_id", "ticket_count"]
             for key in keys:
@@ -56,96 +59,6 @@ class Settings(commands.Cog):
 
         self.save_config()
         return self.server_configs[gid]
-
-    @commands.command(name="set")
-    @commands.has_permissions(administrator=True)
-    async def set_command(self, ctx, target: str = None, channel: discord.TextChannel = None):
-        """서버의 각종 로그 및 티켓 채널을 설정합니다."""
-        key_map = {
-            "log": "log_channel_id",
-            "bot": "command_channel_id",
-            "punish": "punish_log_channel_id",
-            "ticket": "ticket_panel_channel_id"
-        }
-
-        if not target or target.lower() not in key_map:
-            embed = discord.Embed(
-                description=f"❓ 사용법: `{ctx.prefix}set [log/punish/bot/ticket] [#채널]`",
-                color=0x95A5A6
-            )
-            return await ctx.send(embed=embed)
-
-        target = target.lower()
-        target_channel = channel or ctx.channel
-        gid = str(ctx.guild.id)
-        self.get_server_data(ctx.guild)
-
-        self.server_configs[gid][key_map[target]] = target_channel.id
-        embed = discord.Embed(
-            description=f"✅ **{target.upper()}** 채널이 {target_channel.mention}로 설정되었습니다.",
-            color=0x2ECC71
-        )
-
-        if target == "ticket":
-            ticket_cog = self.bot.get_cog('Ticket')
-            if ticket_cog:
-                panel_msg = await ticket_cog.send_ticket_panel(target_channel)
-                if panel_msg:
-                    self.server_configs[gid]["ticket_panel_channel_id"] = target_channel.id
-                    self.server_configs[gid]["ticket_panel_msg_id"] = panel_msg.id
-                    embed = discord.Embed(
-                        description=f"✅ 티켓 패널이 {target_channel.mention}에 생성되었습니다.",
-                        color=0x2ECC71
-                    )
-                else:
-                    embed = discord.Embed(description="❌ 티켓 메시지 생성에 실패했습니다.", color=0xE74C3C)
-                    return await ctx.send(embed=embed)
-            else:
-                embed = discord.Embed(description="❌ Ticket Cog가 로드되지 않았습니다.", color=0xE74C3C)
-                return await ctx.send(embed=embed)
-
-        self.save_config()
-        await ctx.send(embed=embed)
-
-    @commands.command(name="reset")
-    @commands.has_permissions(administrator=True)
-    async def reset_command(self, ctx, target: str = None):
-        """서버 설정을 초기화하거나 특정 채널 설정을 제거합니다."""
-        gid = str(ctx.guild.id)
-        key_map = {
-            "log": "log_channel_id",
-            "bot": "command_channel_id",
-            "punish": "punish_log_channel_id",
-            "ticket": "ticket_panel_channel_id"
-        }
-
-        if target == "all":
-            await self.delete_ticket_panel(ctx.guild)
-            self.server_configs.pop(gid, None)
-            embed = discord.Embed(description="✅ 모든 설정이 초기화되었습니다.", color=0xE74C3C)
-        elif target and target.lower() in key_map:
-            target = target.lower()
-            if target == "ticket":
-                await self.delete_ticket_panel(ctx.guild)
-
-            if gid in self.server_configs:
-                self.server_configs[gid][key_map[target]] = None
-                if target == "ticket":
-                    self.server_configs[gid]["ticket_panel_msg_id"] = None
-                embed = discord.Embed(
-                    description=f"✅ **{target.upper()}** 설정 및 패널이 제거되었습니다.",
-                    color=0x95A5A6
-                )
-            else:
-                embed = discord.Embed(description="❌ 설정된 데이터가 없습니다.", color=0xE74C3C)
-        else:
-            embed = discord.Embed(
-                description=f"❓ 사용법: `{ctx.prefix}reset [log/punish/bot/ticket/all]`",
-                color=0x95A5A6
-            )
-
-        self.save_config()
-        await ctx.send(embed=embed)
 
     async def delete_ticket_panel(self, guild):
         """저장된 티켓 패널 메시지를 물리적으로 삭제합니다."""
@@ -173,6 +86,150 @@ class Settings(commands.Cog):
             except Exception as e:
                 print(f"패널 삭제 오류: {e}")
 
+    set_group = app_commands.Group(name="set", description="서버 설정을 구성합니다.")
+
+    @set_group.command(name="log", description="로그 채널을 설정합니다.")
+    @app_commands.choices(target=[
+        app_commands.Choice(name="server (서버 로그)", value="server"),
+        app_commands.Choice(name="punish (처벌 로그)", value="punish"),
+        app_commands.Choice(name="ticket (티켓 로그)", value="ticket")
+    ])
+    @app_commands.describe(target="설정할 로그 종류", channel="기록할 텍스트 채널 (생략 시 현재 채널)")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def set_log(self, interaction: discord.Interaction, target: str, channel: discord.TextChannel = None):
+        log_map = {
+            "server": "server_log_channel_id",
+            "punish": "punish_log_channel_id",
+            "ticket": "ticket_log_channel_id"
+            }
+        gid = str(interaction.guild.id)
+        self.get_server_data(interaction.guild)
+
+        target_channel = channel or interaction.channel
+        self.server_configs[gid][log_map[target]] = target_channel.id
+        self.save_config()
+
+        embed = discord.Embed(
+            title=f"✅ Log - {target.upper()} 채널 설정",
+            description=f"{target.upper()} 채널이 {target_channel.mention}로 설정되었습니다.",
+            color=0x808080
+            )
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @set_group.command(name="command", description="봇 명령어 전용 채널을 설정합니다.")
+    @app_commands.choices(target=[
+        app_commands.Choice(name="bot (일반 봇 명령어)", value="bot"),
+        app_commands.Choice(name="ticket (티켓 패널 생성)", value="ticket")
+    ])
+    @app_commands.describe(target="설정할 명령어 카테고리", channel="사용할 텍스트 채널 (생략 시 현재 채널)")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def set_command(self, interaction: discord.Interaction, target: str, channel: discord.TextChannel = None):
+        gid = str(interaction.guild.id)
+        self.get_server_data(interaction.guild)
+        target_channel = channel or interaction.channel
+
+        if target == "ticket":
+            ticket_cog = self.bot.get_cog('Ticket')
+            if ticket_cog:
+                await interaction.response.defer(ephemeral=True)
+                await self.delete_ticket_panel(interaction.guild)
+                panel_msg = await ticket_cog.send_ticket_panel(target_channel)
+                if panel_msg:
+                    self.server_configs[gid]["ticket_panel_channel_id"] = target_channel.id
+                    self.server_configs[gid]["ticket_panel_msg_id"] = panel_msg.id
+                    self.save_config()
+                    embed = discord.Embed(
+                        title="✅ TICKET 채널 생성",
+                        description=f"**TICKET** 채널이 {target_channel.mention}로 설정되었으며, 티켓 패널이 생성되었습니다.",
+                        color=0x808080
+                        )
+
+                    return await interaction.followup.send(embed=embed)
+                else:
+                    embed=discord.Embed(description="❌ 티켓 패널 메시지 생성에 실패했습니다.", color=0x808080)
+                    return await interaction.followup.send(embed=embed)
+            else:
+                embed=discord.Embed(description="❌ Ticket Cog가 로드되지 않아 패널을 생성할 수 없습니다.", color=0x808080)
+                return await interaction.response.send_message(embed=embed, ephemeral=True)
+        cmd_map = {
+            "bot": "command_channel_id",
+            }
+        if target in cmd_map:
+            self.server_configs[gid][cmd_map[target]] = target_channel.id
+            self.save_config()
+            embed = discord.Embed(
+                title=f"✅ COMMAND - {target.upper()} 채널 설정",
+                description=f"{target.upper()} 채널이 {target_channel.mention}로 설정되었습니다.",
+                color=0x808080
+                )
+            await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    # --- /reset 명령어 그룹 ---
+    reset_group = app_commands.Group(name="reset", description="서버 설정을 초기화합니다.")
+
+    @reset_group.command(name="all", description="서버의 모든 설정을 초기화합니다.")
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reset_all(self, interaction: discord.Interaction):
+        gid = str(interaction.guild.id)
+        await interaction.response.defer(ephemeral=True)
+        await self.delete_ticket_panel(interaction.guild)
+        self.server_configs.pop(gid, None)
+        self.save_config()
+
+        embed = discord.Embed(description="✅ 모든 설정이 초기화되었습니다.", color=0x808080)
+        await interaction.followup.send(embed=embed)
+
+    @reset_group.command(name="log", description="특정 로그 설정을 제거합니다.")
+    @app_commands.choices(target=[
+        app_commands.Choice(name="server", value="server"),
+        app_commands.Choice(name="punish", value="punish"),
+        app_commands.Choice(name="ticket", value="ticket")
+    ])
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reset_log(self, interaction: discord.Interaction, target: str):
+        log_map = {
+            "server": "server_log_channel_id",
+            "punish": "punish_log_channel_id",
+            "ticket": "ticket_log_channel_id"
+            }
+        gid = str(interaction.guild.id)
+        if gid in self.server_configs and target in log_map:
+            self.server_configs[gid][log_map[target]] = None
+            self.save_config()
+            embed = discord.Embed(description=f"✅ **LOG -> {target.upper()}** 설정이 제거되었습니다.", color=0x808080)
+        else:
+            embed = discord.Embed(description="❌ 설정된 데이터가 없거나 올바르지 않습니다.", color=0x808080)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
+
+    @reset_group.command(name="command", description="특정 명령어 채널 설정을 제거합니다.")
+    @app_commands.choices(target=[
+        app_commands.Choice(name="bot", value="bot"),
+        app_commands.Choice(name="ticket", value="ticket")
+    ])
+    @app_commands.checks.has_permissions(administrator=True)
+    async def reset_command(self, interaction: discord.Interaction, target: str):
+        gid = str(interaction.guild.id)
+        cmd_map = {
+            "bot": "command_channel_id",
+            }
+        if gid in self.server_configs:
+            if target == "ticket":
+                await interaction.response.defer(ephemeral=True)
+                await self.delete_ticket_panel(interaction.guild)
+                self.server_configs[gid]["ticket_panel_channel_id"] = None
+                self.server_configs[gid]["ticket_panel_msg_id"] = None
+                self.save_config()
+                embed = discord.Embed(description="✅ **COMMAND - TICKET** 설정 및 티켓 패널이 제거되었습니다.", color=0x808080)
+                return await interaction.followup.send(embed=embed)
+            elif target in cmd_map:
+                self.server_configs[gid][cmd_map[target]] = None
+                self.save_config()
+                embed = discord.Embed(description=f"✅ **COMMAND - {target.upper()}** 설정이 제거되었습니다.", color=0x808080)
+            else:
+                embed = discord.Embed(description="❌ 올바르지 않은 대상입니다.", color=0x808080)
+        else:
+            embed = discord.Embed(description="❌ 설정된 데이터가 없습니다.", color=0x808080)
+        await interaction.response.send_message(embed=embed, ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Settings(bot))
