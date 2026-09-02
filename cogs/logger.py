@@ -152,8 +152,7 @@ class Logger(commands.Cog):
         """서버 이모지가 추가, 삭제, 또는 이름이 변경되었을 때 실행되는 리스너"""
         before_set = set(before)
         after_set = set(after)
-
-        # 1. 이모지 추가됨
+        
         added = after_set - before_set
         for emoji in added:
             embed = discord.Embed(
