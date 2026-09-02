@@ -37,41 +37,41 @@ class EmojiHelper(commands.Cog):
         except discord.Forbidden:
             return None
 
-    @commands.Cog.listener()
-    async def on_message(self, message):
-        if message.author.bot or not message.guild:
-            return
+    # @commands.Cog.listener()
+    # async def on_message(self, message):
+    #     if message.author.bot or not message.guild:
+    #         return
 
-        content = message.content.strip()
-        match = self.emoji_pattern.fullmatch(content)
+    #     content = message.content.strip()
+    #     match = self.emoji_pattern.fullmatch(content)
 
-        if match:
-            is_animated = bool(match.group(1))
-            emoji_id = match.group(3)
-            ext = "gif" if is_animated else "png"
-            emoji_url = (f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}?size=1024")
+    #     if match:
+    #         is_animated = bool(match.group(1))
+    #         emoji_id = match.group(3)
+    #         ext = "gif" if is_animated else "png"
+    #         emoji_url = (f"https://cdn.discordapp.com/emojis/{emoji_id}.{ext}?size=1024")
 
-            try:
-                webhook = await self.get_webhook(message.channel)
-                if not webhook:
-                    return
+    #         try:
+    #             webhook = await self.get_webhook(message.channel)
+    #             if not webhook:
+    #                 return
 
-                async with self.session.get(emoji_url) as resp:
-                    if resp.status == 200:
-                        data = await resp.read()
+    #             async with self.session.get(emoji_url) as resp:
+    #                 if resp.status == 200:
+    #                     data = await resp.read()
 
-                        if message.guild.me.guild_permissions.manage_messages:
-                            try:
-                                await message.delete()
-                            except discord.NotFound:
-                                pass
+    #                     if message.guild.me.guild_permissions.manage_messages:
+    #                         try:
+    #                             await message.delete()
+    #                         except discord.NotFound:
+    #                             pass
 
-                        file = discord.File(io.BytesIO(data), filename=f"emoji.{ext}")
+    #                     file = discord.File(io.BytesIO(data), filename=f"emoji.{ext}")
 
-                        await webhook.send(file=file, username=message.author.display_name, avatar_url=message.author.display_avatar.url)
+    #                     await webhook.send(file=file, username=message.author.display_name, avatar_url=message.author.display_avatar.url)
 
-            except Exception as e:
-                print(f"[오류] 이모지 확대 실패: {e}")
+    #         except Exception as e:
+    #             print(f"[오류] 이모지 확대 실패: {e}")
 
     @app_commands.command(name="addemoji", description="새로운 커스텀 이모지를 등록합니다.")
     @app_commands.describe(name="등록할 이모지의 이름 (2~32자 영문/숫자/밑줄)", image="업로드할 이미지 파일", source="가져올 이모지 혹은 이미지 URL")
