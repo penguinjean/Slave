@@ -20,12 +20,10 @@ class PUBGStats(commands.Cog):
             "Accept": "application/vnd.api+json"
         }
         self.current_season = None
-        self.main_color = 0xF1C40F
         
         base_path = os.path.dirname(os.path.abspath(__file__))
         self.cache_file = os.path.join(base_path, "..", "data/tracking.json")
 
-        # 봇 시작 시 시즌 정보 로드 및 루프 시작
         self.bot.loop.create_task(self.load_current_season())
 
     async def load_current_season(self):
@@ -55,10 +53,10 @@ class PUBGStats(commands.Cog):
             except (json.JSONDecodeError, FileNotFoundError):
                 data = {}
 
-        player_key = f"pubg {platform}:{nickname}"
+        cache_key = f"pubg {platform} - {nickname}"
 
-        if player_key not in data:
-            data[player_key] = {
+        if cache_key not in data:
+            data[cache_key] = {
                 "nickname": nickname,
                 "platform": platform,
                 "data": {},
@@ -68,8 +66,8 @@ class PUBGStats(commands.Cog):
         if is_ranked:
             mode_type = f"ranked-{mode}"
         else : mode_type = mode
-        data[player_key]["data"][mode_type] = stats_content
-        data[player_key]["timestamp"] = time.time() 
+        data[cache_key]["data"][mode_type] = stats_content
+        data[cache_key]["timestamp"] = time.time() 
 
         with open(self.cache_file, "w", encoding="utf-8") as f:
             json.dump(data, f, indent=4, ensure_ascii=False)
@@ -168,7 +166,7 @@ class PUBGStats(commands.Cog):
 
         self.save_tracking(platform, stats['nickname'], stats_content, stats['mode_key'], is_ranked)
 
-        embed = discord.Embed(title=f"PUBG 전적: {stats['nickname']}", color=self.main_color)
+        embed = discord.Embed(title=f"PUBG 전적: {stats['nickname']}", color=0x808080)
         if is_ranked:
             embed.add_field(name="티어", value=f"**{stats['tier']} {stats['sub_tier']}** ({stats['point']}pt)", inline=False)
 
@@ -177,9 +175,7 @@ class PUBGStats(commands.Cog):
         embed.add_field(name="K/D", value=f"**{stats['kd']}**", inline=True)
         embed.add_field(name="평균 딜량(ADR)", value=f"{stats['adr']}", inline=True)
         embed.add_field(name="승률 / Top10", value=f"{stats['win_rate']}% / {stats['top10_rate']}%", inline=True)
-        
-        dak_url = f"https://dak.gg/pubg/profile/{platform}/{stats['nickname']}"
-        embed.add_field(name="🔗 상세 전적", value=f"[DAK.GG 바로가기]({dak_url})", inline=False)
+        embed.add_field(name="🔗 상세 전적", value=f"[DAK.GG 바로가기](https://dak.gg/pubg/profile/{platform}/{stats['nickname']})", inline=False)
         embed.set_footer(text=f"{platform.upper()} / {'Ranked' if is_ranked else 'Normal'}")
         
         return await interaction.followup.send(embed=embed)

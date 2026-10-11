@@ -40,10 +40,7 @@ class LOLStats(commands.Cog):
         routing = self.region_map.get(platform, 'asia')
         headers = {"X-Riot-Token": self.api_key}
         async with aiohttp.ClientSession() as session:
-            acc_url = (
-                f"https://{routing}.api.riotgames.com/riot/account/v1/"
-                f"accounts/by-riot-id/{quote(name)}/{quote(tag)}"
-            )
+            acc_url = f"https://{routing}.api.riotgames.com/riot/account/v1/accounts/by-riot-id/{quote(name)}/{quote(tag)}"
             async with session.get(acc_url, headers=headers) as resp:
                 if resp.status != 200:
                     return None
@@ -99,11 +96,10 @@ class LOLStats(commands.Cog):
         ])
     @app_commands.describe(riot_id="라이엇 ID (예: Hide on bush#KR1)", platform="서버 지역 (기본값: KR)", force_update="캐시를 무시하고 강제 갱신 여부")
     async def lol_stats(self, interaction: discord.Interaction, riot_id: str, platform: str = "kr", force_update: bool = False):
-        # 3초 제한 방지를 위한 응답 지연 처리
         await interaction.response.defer()
     
         if "#" not in riot_id:
-                embed = discord.Embed(description="💡 예시: `Hide on bush#KR1`처럼 태그(#)를 포함하여 입력해주세요.", color=0xE74C3C)
+                embed = discord.Embed(description="💡 예시: `Hide on bush#KR1`처럼 태그(#)를 포함하여 입력해주세요.", color=0x808080)
                 return await interaction.followup.send(embed=embed, ephemeral=True)
     
         game_name, tag_line = riot_id.rsplit("#", 1)
@@ -113,10 +109,10 @@ class LOLStats(commands.Cog):
         platform_code = self.platform_alias.get(platform.lower(), platform.lower())
         if platform_code not in self.region_map:
             valid_list = ", ".join(self.platform_alias.keys())
-            embed = discord.Embed(description=f"❌ 알 수 없는 지역입니다.\n지원: `{valid_list}`", color=0xE74C3C)
+            embed = discord.Embed(description=f"❌ 알 수 없는 지역입니다.\n지원: `{valid_list}`", color=0x808080)
             return await interaction.followup.send(embed=embed, ephemeral=True)
     
-        cache_key = f"lol {platform_code}:{riot_id}"
+        cache_key = f"lol {platform_code} - {riot_id}"
         
         try:
             with open(self.cache_file, "r", encoding="utf-8") as f:
@@ -146,10 +142,7 @@ class LOLStats(commands.Cog):
                 data = raw_res
                 
             except Exception:
-                embed = discord.Embed(
-                    description=f"❌ **{riot_id}** 소환사를 찾을 수 없습니다. (이름 및 태그 확인)",
-                    color=0xE74C3C
-                )
+                embed = discord.Embed(description=f"❌ **{riot_id}** 소환사를 찾을 수 없습니다. (이름 및 태그 확인)", color=0x808080)
                 return await interaction.followup.send(embed=embed, ephemeral=True)
 
             cache[cache_key] = {
@@ -165,37 +158,25 @@ class LOLStats(commands.Cog):
             footer = "실시간 데이터 업데이트 완료"
 
         if level is None or icon is None:
-            embed = discord.Embed(
-                description="❌ 데이터를 처리하는 중 오류가 발생했습니다.",
-                color=0xE74C3C
-            )
+            embed = discord.Embed(description="❌ 데이터를 처리하는 중 오류가 발생했습니다.", color=0x808080)
             return await interaction.followup.send(embed=embed, ephemeral=True)
         
         opgg_region = re.sub(r'\d+', '', platform_code)
         encoded_id = quote(riot_id.replace('#', '-'))
         opgg_url = f"https://www.op.gg/summoners/{opgg_region}/{encoded_id}"
 
-        title = f"🎮 [{platform_code.upper()}] {riot_id} (Lv.{level})"
-        embed = discord.Embed(title=title, color=0x1ABC9C)
+        embed = discord.Embed(title=f"🎮 LOL {riot_id} (Lv.{level})", description=f"platform: {platform_code.upper()}", color=0x808080)
         embed.set_thumbnail(url=f"https://ddragon.leagueoflegends.com/cdn/14.6.1/img/profileicon/{icon}.png")
 
         s = data['solo']
         s_total = s['w'] + s['l']
         s_wr = round(s['w'] / s_total * 100, 1) if s_total > 0 else 0
-        embed.add_field(
-            name="🏆 솔로 랭크",
-            value=f"**{s['tier']}**\n{s['lp']} LP\n{s['w']}승 {s['l']}패 ({s_wr}%)",
-            inline=True
-        )
+        embed.add_field(name="🏆 솔로 랭크", value=f"**{s['tier']}**\n{s['lp']} LP\n{s['w']}승 {s['l']}패 ({s_wr}%)", inline=False)
 
         f = data['flex']
         f_total = f['w'] + f['l']
         f_wr = round(f['w'] / f_total * 100, 1) if f_total > 0 else 0
-        embed.add_field(
-            name="⚔️ 자유 랭크",
-            value=f"**{f['tier']}**\n{f['lp']} LP\n{f['w']}승 {f['l']}패 ({f_wr}%)",
-            inline=True
-        )
+        embed.add_field(name="⚔️ 자유 랭크", value=f"**{f['tier']}**\n{f['lp']} LP\n{f['w']}승 {f['l']}패 ({f_wr}%)", inline=False)
 
         embed.add_field(name="🔗 자세한 전적 (OP.GG)", value=f"[전적 보러가기]({opgg_url})", inline=False)
         embed.set_footer(text=footer)
